@@ -1,6 +1,7 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from decimal import Decimal
 import uuid
@@ -18,13 +19,18 @@ from .serializers import (
     WalletProjectionSerializer,
     DepositProjectionSerializer,
     EditWalletSettingsSerializer,
+    InitiateWithdrawalSerializer,
+    ConfirmWithdrawalSerializer,
+    WithdrawalProjectionSerializer,
 )
 from .events import append_event
 from .projections import apply_event_to_projections
-from .models import WalletProjection, DepositProjection
+from .models import WalletProjection, DepositProjection, WithdrawalProjection
 
 
 class CreateWalletView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         request=CreateWalletSerializer,
         responses={201: WalletProjectionSerializer},
@@ -53,17 +59,21 @@ class CreateWalletView(APIView):
             aggregate_id=wallet_id,
             aggregate_type="wallet",
             event_type="WalletCreated",
-            data={"owner": p["owner"], "addresses": p.get("addresses", [])},
+            data={"owner": p.get("owner") or request.user.username, "addresses": p.get("addresses", [])},
             expected_version=0,
             idempotency_key=idemp,
         )
         apply_event_to_projections(ev)
 
         proj = WalletProjection.objects.get(wallet_id=wallet_id)
+        proj.user = request.user
+        proj.save()
         return Response(WalletProjectionSerializer(proj).data, status=status.HTTP_201_CREATED)
 
 
 class AddAddressView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         parameters=[
             OpenApiParameter("wallet_id", str, OpenApiParameter.PATH, description="ID of the wallet"),
@@ -74,6 +84,10 @@ class AddAddressView(APIView):
         description="Add a blockchain address to an existing wallet."
     )
     def post(self, request, wallet_id):
+        wallet = get_object_or_404(WalletProjection, wallet_id=wallet_id)
+        if wallet.user != request.user:
+            return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
+
         address = request.data.get("address")
         if not address:
             return Response({"detail": "address required"}, status=status.HTTP_400_BAD_REQUEST)
@@ -91,6 +105,8 @@ class AddAddressView(APIView):
 
 
 class InitiateDepositView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         request=InitiateDepositSerializer,
         responses={201: DepositProjectionSerializer},
@@ -101,6 +117,10 @@ class InitiateDepositView(APIView):
         ser = InitiateDepositSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         p = ser.validated_data
+
+        wallet = get_object_or_404(WalletProjection, wallet_id=p["wallet_id"])
+        if wallet.user != request.user:
+            return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
 
         deposit_id = p.get("deposit_id") or uuid.uuid4()
         idemp = p.get("idempotency_key")
@@ -119,6 +139,8 @@ class InitiateDepositView(APIView):
 
 
 class ConfirmDepositView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         parameters=[
             OpenApiParameter("deposit_id", str, OpenApiParameter.PATH, description="Deposit ID to confirm")
@@ -135,6 +157,11 @@ class ConfirmDepositView(APIView):
         if not tx_hash:
             return Response({"detail": "tx_hash required"}, status=status.HTTP_400_BAD_REQUEST)
 
+        dp = get_object_or_404(DepositProjection, deposit_id=deposit_id)
+        wallet = get_object_or_404(WalletProjection, wallet_id=dp.wallet_id)
+        if wallet.user != request.user:
+            return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
+
         ev = append_event(
             aggregate_id=deposit_id,
             aggregate_type="deposit",
@@ -146,7 +173,6 @@ class ConfirmDepositView(APIView):
         dp = DepositProjection.objects.get(deposit_id=deposit_id)
         wallet_id = dp.wallet_id
 
-        # Update wallet balance
         w_ev = append_event(
             aggregate_id=wallet_id,
             aggregate_type="wallet",
@@ -158,6 +184,8 @@ class ConfirmDepositView(APIView):
         return Response(DepositProjectionSerializer(dp).data)
 
 class EditWalletSettingsView(APIView):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         request=EditWalletSettingsSerializer,
         responses={200: WalletProjectionSerializer},
@@ -165,6 +193,10 @@ class EditWalletSettingsView(APIView):
         description="Allows editing wallet configuration such as address replacement."
     )
     def put(self, request, wallet_id):
+        wallet = get_object_or_404(WalletProjection, wallet_id=wallet_id)
+        if wallet.user != request.user:
+            return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
+
         ser = EditWalletSettingsSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         p = ser.validated_data
@@ -180,3 +212,102 @@ class EditWalletSettingsView(APIView):
 
         proj = get_object_or_404(WalletProjection, wallet_id=wallet_id)
         return Response(WalletProjectionSerializer(proj).data)
+
+
+class InitiateWithdrawalView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        request=InitiateWithdrawalSerializer,
+        responses={201: WithdrawalProjectionSerializer},
+        summary="Initiate Withdrawal",
+        description="Begin a withdrawal request. Validates sufficient balance before creating."
+    )
+    def post(self, request):
+        ser = InitiateWithdrawalSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        p = ser.validated_data
+
+        wallet = get_object_or_404(WalletProjection, wallet_id=p["wallet_id"])
+        if wallet.user != request.user:
+            return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
+
+        amount = Decimal(str(p["amount"]))
+        if wallet.balance < amount:
+            return Response({"detail": "Insufficient balance"}, status=status.HTTP_400_BAD_REQUEST)
+
+        withdrawal_id = p.get("withdrawal_id") or uuid.uuid4()
+        idemp = p.get("idempotency_key")
+
+        ev = append_event(
+            aggregate_id=withdrawal_id,
+            aggregate_type="withdrawal",
+            event_type="WithdrawalInitiated",
+            data={
+                "wallet_id": str(p["wallet_id"]),
+                "amount": str(p["amount"]),
+                "currency": p.get("currency", "USD"),
+                "user_id": str(request.user.id)
+            },
+            idempotency_key=idemp,
+        )
+        apply_event_to_projections(ev)
+
+        wp = WithdrawalProjection.objects.get(withdrawal_id=withdrawal_id)
+        return Response(WithdrawalProjectionSerializer(wp).data, status=status.HTTP_201_CREATED)
+
+
+class ConfirmWithdrawalView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("withdrawal_id", str, OpenApiParameter.PATH, description="Withdrawal ID to confirm")
+        ],
+        request=ConfirmWithdrawalSerializer,
+        responses={200: WithdrawalProjectionSerializer},
+        summary="Confirm Withdrawal",
+        description="Confirms a pending withdrawal and deducts from wallet balance."
+    )
+    def post(self, request, withdrawal_id):
+        withdrawal = get_object_or_404(WithdrawalProjection, withdrawal_id=withdrawal_id)
+        
+        if withdrawal.status != "initiated":
+            return Response({"detail": "Withdrawal already confirmed or failed"}, status=status.HTTP_400_BAD_REQUEST)
+
+        wallet = get_object_or_404(WalletProjection, wallet_id=withdrawal.wallet_id)
+        if wallet.user != request.user:
+            return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
+
+        tx_hash = request.data.get("tx_hash")
+
+        ev = append_event(
+            aggregate_id=withdrawal_id,
+            aggregate_type="withdrawal",
+            event_type="WithdrawalConfirmed",
+            data={"wallet_id": str(withdrawal.wallet_id), "amount": str(withdrawal.amount), "tx_hash": tx_hash or ""},
+        )
+        apply_event_to_projections(ev)
+
+        wp = WithdrawalProjection.objects.get(withdrawal_id=withdrawal_id)
+        return Response(WithdrawalProjectionSerializer(wp).data)
+
+
+class GetWithdrawalView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("withdrawal_id", str, OpenApiParameter.PATH, description="Withdrawal ID")
+        ],
+        responses={200: WithdrawalProjectionSerializer},
+        summary="Get Withdrawal",
+        description="Get withdrawal details and current status."
+    )
+    def get(self, request, withdrawal_id):
+        withdrawal = get_object_or_404(WithdrawalProjection, withdrawal_id=withdrawal_id)
+        wallet = get_object_or_404(WalletProjection, wallet_id=withdrawal.wallet_id)
+        if wallet.user != request.user:
+            return Response({"detail": "You do not have permission to access this withdrawal"}, status=status.HTTP_403_FORBIDDEN)
+
+        return Response(WithdrawalProjectionSerializer(withdrawal).data)

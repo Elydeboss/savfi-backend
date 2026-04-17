@@ -1,21 +1,26 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import UserRateThrottle
 from drf_spectacular.utils import extend_schema
 from django.utils import timezone
-import random
 from datetime import timedelta
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
 from .models import OTP
 from .serializers import RegisterSerializer, LoginSerializer
+from .utils import generate_otp
 from django.conf import settings
 DEFAULT_FROM_EMAIL = settings.DEFAULT_FROM_EMAIL
 User = get_user_model()
 
 
-def generate_otp():
-    return str(random.randint(100000, 999999))
+class RegisterThrottle(UserRateThrottle):
+    rate = '3/minute'
+
+
+class OTPThrottle(UserRateThrottle):
+    rate = '5/minute'
 
 def send_otp_email(email, code):
     send_mail(
@@ -34,6 +39,8 @@ def send_otp_to_console(email, code):
 
 # REGISTER
 class RegisterView(APIView):
+    throttle_classes = [RegisterThrottle]
+
     @extend_schema(request=RegisterSerializer, responses={201: RegisterSerializer})
     def post(self, request):
         ser = RegisterSerializer(data=request.data)
@@ -67,6 +74,8 @@ class LoginView(APIView):
 
 # VERIFY OTP
 class VerifyOTPView(APIView):
+    throttle_classes = [OTPThrottle]
+
     @extend_schema(
         summary="Verify OTP",
         description="Confirm OTP sent to the user",
@@ -96,6 +105,8 @@ class VerifyOTPView(APIView):
 
 # RESEND OTP
 class ResendOTPView(APIView):
+    throttle_classes = [OTPThrottle]
+
     @extend_schema(summary="Resend OTP")
     def post(self, request):
         username = request.data.get("username")

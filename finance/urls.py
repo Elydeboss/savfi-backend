@@ -32,6 +32,7 @@ urlpatterns = [
     path("redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
     path("", include("ledger.urls")),
     path("accounts/", include("accounts.urls")),
+    path("wallet/", include("wallet.urls")),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,10 +1,10 @@
 from rest_framework import serializers
-from .models import WalletProjection, DepositProjection
+from .models import WalletProjection, DepositProjection, WithdrawalProjection
 import uuid
 
 class CreateWalletSerializer(serializers.Serializer):
     wallet_id = serializers.UUIDField(required=False, default=uuid.uuid4)
-    owner = serializers.CharField(max_length=255)
+    owner = serializers.CharField(max_length=255, required=False, allow_blank=True)
     addresses = serializers.ListField(child=serializers.CharField(), required=False, default=list)
     idempotency_key = serializers.CharField(required=False, allow_blank=True)
 
@@ -31,3 +31,18 @@ class EditWalletSettingsSerializer(serializers.Serializer):
         required=True
     )
     idempotency_key = serializers.CharField(required=False, allow_blank=True)
+
+class InitiateWithdrawalSerializer(serializers.Serializer):
+    withdrawal_id = serializers.UUIDField(required=False, default=uuid.uuid4)
+    wallet_id = serializers.UUIDField()
+    amount = serializers.DecimalField(max_digits=36, decimal_places=18)
+    currency = serializers.CharField(max_length=20, default="USD")
+    idempotency_key = serializers.CharField(required=False, allow_blank=True)
+
+class ConfirmWithdrawalSerializer(serializers.Serializer):
+    tx_hash = serializers.CharField(required=False, allow_blank=True)
+
+class WithdrawalProjectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WithdrawalProjection
+        fields = "__all__"

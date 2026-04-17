@@ -5,6 +5,7 @@ from django.utils import timezone
 import random
 
 from .models import OTP
+from .utils import generate_otp
 
 User = get_user_model()
 
@@ -24,15 +25,14 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.is_active = False  # requires verification
         user.save()
 
-        # Create OTP
-        code = f"{random.randint(100000, 999999)}"
+        code = generate_otp()
         OTP.objects.create(
             user=user,
             code=code,
             expires_at=timezone.now() + timezone.timedelta(minutes=10)
         )
 
-        print("OTP for verification:", code)  # Replace later with email sending
+        print("OTP for verification:", code)
 
         return user
 

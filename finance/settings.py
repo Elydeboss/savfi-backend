@@ -30,12 +30,11 @@ from datetime import timedelta
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-r1ubwqijm3i)per&p1ur2x9u6cuok&+lysr3@buqn8j508)goy'
+SECRET_KEY = os.getenv("SECRET_KEY", "django-insecure-fallback-change-me-in-production")
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv("DEBUG", False)
 
-ALLOWED_HOSTS = ['wallet-api-55mt.onrender.com','https://wallet-api-55mt.onrender.com',]
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 
 # Application definition
@@ -56,6 +55,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'accounts',
     
+   'wallet',
     'ledger',
     
 ]
