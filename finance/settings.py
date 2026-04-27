@@ -70,7 +70,7 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 SENDGRID_SANDBOX_MODE_IN_DEBUG = False
 SENDGRID_ECHO_TO_STDOUT = True
 
-DEFAULT_FROM_EMAIL = os.getenv("EMAIL_HOST_USER")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 
 
 STATIC_URL = "/static/"
@@ -185,7 +185,7 @@ SIMPLE_JWT = {
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     'https://wallet-api-55mt.onrender.com',
-    'savfi-backend.onrender.com', 
+    'https://savfi-backend.onrender.com',
 ]
 
 
