@@ -144,12 +144,14 @@ WSGI_APPLICATION = 'finance.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
+import dj_database_url
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+    'default': dj_database_url.config(
+        default=os.getenv('DATABASE_URL'),
+        conn_max_age=600,
+        conn_health_checks=True,
+    )
 }
 
 
@@ -184,6 +186,12 @@ SIMPLE_JWT = {
 CORS_ALLOWED_ORIGINS = [
     'https://wallet-api-55mt.onrender.com',
 ]
+
+import os
+
+# This pulls from the .env or Render dashboard. 
+# If it's empty, it defaults to localhost.
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
