@@ -185,13 +185,16 @@ SIMPLE_JWT = {
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
     'https://wallet-api-55mt.onrender.com',
+    'savfi-backend.onrender.com', 
 ]
 
-import os
 
-# This pulls from the .env or Render dashboard. 
-# If it's empty, it defaults to localhost.
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
+# Add your render domain here
+ALLOWED_HOSTS = [
+    'savfi-backend.onrender.com', 
+    'localhost', 
+    '127.0.0.1'
+]
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
