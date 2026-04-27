@@ -84,7 +84,7 @@ class AddAddressView(APIView):
         description="Add a blockchain address to an existing wallet."
     )
     def post(self, request, wallet_id):
-        wallet = get_object_or_404(WalletProjection, wallet_id=wallet_id)
+        wallet = get_object_or_404(WalletProjection.objects.select_related('user'), wallet_id=wallet_id)
         if wallet.user != request.user:
             return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
 
@@ -118,7 +118,7 @@ class InitiateDepositView(APIView):
         ser.is_valid(raise_exception=True)
         p = ser.validated_data
 
-        wallet = get_object_or_404(WalletProjection, wallet_id=p["wallet_id"])
+        wallet = get_object_or_404(WalletProjection.objects.select_related('user'), wallet_id=p["wallet_id"])
         if wallet.user != request.user:
             return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
 
@@ -158,7 +158,7 @@ class ConfirmDepositView(APIView):
             return Response({"detail": "tx_hash required"}, status=status.HTTP_400_BAD_REQUEST)
 
         dp = get_object_or_404(DepositProjection, deposit_id=deposit_id)
-        wallet = get_object_or_404(WalletProjection, wallet_id=dp.wallet_id)
+        wallet = get_object_or_404(WalletProjection.objects.select_related('user'), wallet_id=dp.wallet_id)
         if wallet.user != request.user:
             return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
 
@@ -193,7 +193,7 @@ class EditWalletSettingsView(APIView):
         description="Allows editing wallet configuration such as address replacement."
     )
     def put(self, request, wallet_id):
-        wallet = get_object_or_404(WalletProjection, wallet_id=wallet_id)
+        wallet = get_object_or_404(WalletProjection.objects.select_related('user'), wallet_id=wallet_id)
         if wallet.user != request.user:
             return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
 
@@ -228,7 +228,7 @@ class InitiateWithdrawalView(APIView):
         ser.is_valid(raise_exception=True)
         p = ser.validated_data
 
-        wallet = get_object_or_404(WalletProjection, wallet_id=p["wallet_id"])
+        wallet = get_object_or_404(WalletProjection.objects.select_related('user'), wallet_id=p["wallet_id"])
         if wallet.user != request.user:
             return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
 
@@ -275,7 +275,7 @@ class ConfirmWithdrawalView(APIView):
         if withdrawal.status != "initiated":
             return Response({"detail": "Withdrawal already confirmed or failed"}, status=status.HTTP_400_BAD_REQUEST)
 
-        wallet = get_object_or_404(WalletProjection, wallet_id=withdrawal.wallet_id)
+        wallet = get_object_or_404(WalletProjection.objects.select_related('user'), wallet_id=withdrawal.wallet_id)
         if wallet.user != request.user:
             return Response({"detail": "You do not have permission to access this wallet"}, status=status.HTTP_403_FORBIDDEN)
 
@@ -306,7 +306,7 @@ class GetWithdrawalView(APIView):
     )
     def get(self, request, withdrawal_id):
         withdrawal = get_object_or_404(WithdrawalProjection, withdrawal_id=withdrawal_id)
-        wallet = get_object_or_404(WalletProjection, wallet_id=withdrawal.wallet_id)
+        wallet = get_object_or_404(WalletProjection.objects.select_related('user'), wallet_id=withdrawal.wallet_id)
         if wallet.user != request.user:
             return Response({"detail": "You do not have permission to access this withdrawal"}, status=status.HTTP_403_FORBIDDEN)
 

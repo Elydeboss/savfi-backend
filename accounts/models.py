@@ -25,3 +25,7 @@ class OTP(models.Model):
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=['user', 'is_used', 'created_at']),
+            models.Index(fields=['code']),
+        ]

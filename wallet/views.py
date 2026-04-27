@@ -20,7 +20,7 @@ class ListWalletAddressesView(APIView):
 
     @extend_schema(responses={200: WalletAddressSerializer(many=True)})
     def get(self, request):
-        addresses = WalletAddress.objects.filter(user=request.user)
+        addresses = WalletAddress.objects.select_related('user').filter(user=request.user)
         ser = WalletAddressSerializer(addresses, many=True)
         return Response(ser.data, status=status.HTTP_200_OK)
     

@@ -98,7 +98,10 @@ class VerifyOTPView(APIView):
         if otp and otp.is_valid():
             otp.is_used = True
             otp.save()
-            return Response({"message": "OTP verified successfully"}, status=status.HTTP_200_OK)
+            # Activate user account after successful OTP verification
+            user.is_active = True
+            user.save()
+            return Response({"message": "OTP verified successfully. Account activated."}, status=status.HTTP_200_OK)
 
         return Response({"detail": "Invalid or expired OTP"}, status=status.HTTP_400_BAD_REQUEST)
 
